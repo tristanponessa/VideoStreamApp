@@ -1,4 +1,3 @@
-import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { JwtModule } from '@nestjs/jwt';
@@ -10,10 +9,20 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { secret } from './utils/constants';
 import { join } from 'path/posix';
+import { VideoController } from './controller/video.controller';
+import { VideoService } from './service/video.service';
+import { UserService } from './service/user.service';
+import { UserController } from './controller/user.controller';
+import { Video, VideoSchema } from './model/video.schema';
+import { User, UserSchema } from './model/user.schema';
+import { Module, RequestMethod, MiddlewareConsumer } from '@nestjs/common';
+import { isAuthenticated } from './app.middleware';
 
 @Module({
   imports: [
     MongooseModule.forRoot('mongodb://localhost:27017/Stream'),
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: Video.name, schema: VideoSchema }]),
     MulterModule.register({
       storage: diskStorage({
         destination: './public',
@@ -31,7 +40,17 @@ import { join } from 'path/posix';
       rootPath: join(__dirname, '..', 'public'),
     }),
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, VideoController, UserController],
+  providers: [AppService, VideoService, UserService],
 })
-export class AppModule {}
+
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(isAuthenticated)
+      .exclude(
+        { path: 'api/v1/video/:id', method: RequestMethod.GET }
+      )
+      .forRoutes(VideoController);
+  }
+}
